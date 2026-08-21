@@ -1,5 +1,6 @@
 import pysam # For reading vcf.gz
 from pyensembl import EnsemblRelease # For finding exon coordinates
+import pandas as pd # For writing the report as a CSV file
 
 # Finding exon coordinates:
 data = EnsemblRelease(115)
@@ -9,6 +10,21 @@ print(f"Gene ID: {gene.gene_id}")
 print(f"Location: Chromosome {gene.contig}: {gene.start} - {gene.end}")
 transcript = data.transcript_by_id('ENST00000674923')
 print(f'Transcript ID: {transcript.transcript_id}')
+
+# Dictionary for report:
+data = {
+    'Chromosome': [],
+    'Position': [],
+    'REF': [],
+    'ALT': [],
+    'Genotype': [],
+    'Heterozygous In Exons': [],
+    'Heterozygous In Splice sites': [],
+    'Heterozygous In Introns': [],
+    'Homozygous Reference': [],
+    'Heterozygous': [],
+    'Homozygous Alternate': []
+}
 
 with pysam.VariantFile("/HG001_GRCh38_1_22_v4.2.1_benchmark.vcf.gz", "r") as vcf_file:
     print(list(vcf_file.header.samples))
@@ -28,7 +44,29 @@ with pysam.VariantFile("/HG001_GRCh38_1_22_v4.2.1_benchmark.vcf.gz", "r") as vcf
         sample_data = record.samples['HG001']
         gt_tuple = sample_data["GT"]
         if gt_tuple == (0,1):
-            heterozygous_variants.append(record.pos)
+            data['Chromosome'].append(record.chrom)
+            data['Position'].append(record.pos)
+            data['REF'].append(record.ref)
+            data['ALT'].append(record.alts)
+            data['Genotype'].append(gt_tuple)
+            # Distribution of heterozygous variants by exons
+            found_any = False
+            for exon in transcript.exons:
+                if exon.start <= record.pos <= exon.end:
+                    data['Heterozygous In Exons'].append(record.pos)
+                    found_any = True
+                    print(f'Variant ({record.pos}) found in Exon {exon.exon_id}')
+                if exon.end < record.pos <= exon.end+2: # Variants in donor site (5' end of the intron)
+                    data['Heterozygous In Splice sites'].append(record.pos)
+                    found_any = True
+                    print(f'Variant ({record.pos}) found in Splice site after {exon.exon_id}')
+                if exon.start-2 <= record.pos < exon.start: # Variants in acceptor site (3' end of the intron)
+                    data['Heterozygous In Splice sites'].append(record.pos)
+                    found_any = True
+                    print(f'Variant ({record.pos}) found in Splice site before {exon.exon_id}')
+            if not found_any:
+                data['Heterozygous In Introns'].append(record.pos)
+                print('Variants not found in the exons or splice sites')
             print(f"{record.chrom}, Position: {record.pos}, Proband: {gt_tuple}") # Print Heterozygous Variants
         # Calculating variants:
         if gt_tuple == (0,0):
@@ -38,6 +76,9 @@ with pysam.VariantFile("/HG001_GRCh38_1_22_v4.2.1_benchmark.vcf.gz", "r") as vcf
         elif gt_tuple == (1,1):
             count_alt+=1
         total_count = count_norm+count_hetero+count_alt
+        data['Homozygous Reference'] = count_norm
+        data['Heterozygous'] = count_hetero
+        data['Homozygous Alternate'] = count_alt
 
     # Distribution of variants by exons
     found_any = False
@@ -58,6 +99,10 @@ with pysam.VariantFile("/HG001_GRCh38_1_22_v4.2.1_benchmark.vcf.gz", "r") as vcf
     print(f"Homozygous Reference (0/0): {count_norm} ({count_norm/total_count*100:.2f}%)")
     print(f"Heterozygous (0/1):        {count_hetero} ({count_hetero/total_count*100:.2f}%)")
     print(f"Homozygous Alternate (1/1): {count_alt} ({count_alt/total_count*100:.2f}%)")
+
+    # Create DataFrame and export
+    output = pd.DataFrame({key: pd.Series(value) for key, value in data.items()})
+    output.to_csv("SCN1A variants.csv", index=False, encoding='utf-8-sig', sep=';')
 
 #My Output:
 #Gene name: SCN1A
