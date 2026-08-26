@@ -44,7 +44,10 @@ def find_variants(vcf='', gene='', transcript='', sample='', tuple=tuple()):
         count_alt = 0 # Homozygous Alternate (1/1)
 
         # Gene position:
-        start_pos = gene.start
+        # gene.start from pyensembl - 1-based coordinate
+        # vcf_file.fetch() from pysam needs 0-based coordinates
+        # record.pos from a pysam.VariantFile - 1-based coordinate
+        start_pos = gene.start-1
         end_pos = gene.end
         chrom = f'chr{gene.contig}'
 
