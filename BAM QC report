@@ -17,7 +17,7 @@ def gene_coverage(bam='', gene='', transcript=''):
     start = gene.start
     end = gene.end
     chrom = gene.contig
-    total_bases = end - start
+    total_bases = end - start + 1
     location = f"{chrom}:{start}-{end}"
 
     # Dictionary for report:
