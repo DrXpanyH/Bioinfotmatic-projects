@@ -2,8 +2,10 @@ import pysam # For reading BAM files
 from pyensembl import EnsemblRelease # For finding exon coordinates
 import pandas as pd # For writing the report as a CSV file
 import numpy as np
+import subprocess
 
 def gene_coverage(bam='', gene='', transcript=''):
+    # Gene info
     data = EnsemblRelease(115)
     gene = data.genes_by_name(gene)[0]
     transcript = data.transcript_by_id(transcript)
@@ -12,9 +14,11 @@ def gene_coverage(bam='', gene='', transcript=''):
     print(f"Location: Chromosome {gene.contig}: {gene.start} - {gene.end}")
     print(f'Transcript ID: {transcript.transcript_id}') 
 
-    start = gene.start -1 
+    start = gene.start
     end = gene.end
     chrom = gene.contig
+    total_bases = end - start
+    location = f"{chrom}:{start}-{end}"
 
     # Dictionary for report:
     report = {
@@ -31,26 +35,35 @@ def gene_coverage(bam='', gene='', transcript=''):
         total = content.count(chrom, start, end)
         report['Total reads'].append(total)
 
+        # Using subprocess to run samtools
+        terminal = ['samtools', 'depth', '-a', '-r', location, bam] # Samtools computes the read depth
+        sam_out = subprocess.run(terminal, capture_output=True, text=True, check=True)
+        depths = np.loadtxt(sam_out.stdout.strip().splitlines(), dtype=int, usecols=(2)) # np.loadtxt instead of a loop
+
+        #lines = sam_out.stdout.strip().splitlines()
+        #for line in lines:
+        #    chr, pos, depth = line.split()
+        #   depths.append(int(depth))
+        #depths = np.array(depths)
+        
         # Count mean coverage
-        depths = np.array([read.nsegments for read in content.pileup(chrom, start, end, truncate=True)])
-        sum_depths = sum(depths)
         mean_coverage = np.mean(depths)
         report['Mean coverage'].append(mean_coverage)
 
         count_zero = np.sum(depths == 0)
-        report['Bases with 0x coverage'] = [f'{count_zero} ({count_zero/sum_depths*100:.3f}%']
+        report['Bases with 0x coverage'] = [f'{count_zero} ({(count_zero/total_bases)*100:.3f}%)']
 
         bins = [0, 6, 11, 21, 50]
         positions, bin_edges = np.histogram(depths, bins)
         for i in range(len(positions)):
-            report[f'Bases with {bins[i]}-{bins[i+1]-1}x coverage'] = [f'{positions[i]} ({positions[i]/sum(depths)*100:.3f}%)']
+            report[f'Bases with {bins[i]}-{bins[i+1]-1}x coverage'] = [f'{positions[i]} ({(positions[i]/total_bases)*100:.3f}%)']
 
         count_51 = np.sum(depths > 50) 
-        report['Bases with >50x coverage'] = [f'{count_51} ({count_51/sum_depths*100:.3f}%']
+        report['Bases with >50x coverage'] = [f'{count_51} ({(count_51/total_bases)*100:.3f}%)']
 
         count_10 = np.sum(depths >= 10)
-        count_10_percent = count_10/sum_depths*100
-        report['Bases with ≥10x coverage'] = [f'{count_10} ({count_10_percent:.3f}%']
+        count_10_percent = (count_10/total_bases)*100
+        report['Bases with ≥10x coverage'] = [f'{count_10} ({count_10_percent:.3f}%)']
         if count_10_percent >= 95:
             report['QC Verdict'] = ['PASS']
             print('QC Verdict: PASS (≥95% bases at ≥10x coverage)')
@@ -65,6 +78,5 @@ def gene_coverage(bam='', gene='', transcript=''):
         output.to_csv(f"{gene.gene_name} QC report.csv", index=False, encoding='utf-8-sig', sep=';')
 
         print('Finish')
-
 
 gene_coverage('https://ftp.ncbi.nlm.nih.gov/ReferenceSamples/giab/data/NA12878/NIST_NA12878_HG001_HiSeq_300x/RMNISTHS_30xdownsample.bam', 'SCN1A','ENST00000674923')
