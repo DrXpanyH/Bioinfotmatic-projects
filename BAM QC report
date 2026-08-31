@@ -43,10 +43,23 @@ def gene_coverage(bam='', gene='', transcript=''):
         bins = [0, 6, 11, 21, 50]
         positions, bin_edges = np.histogram(depths, bins)
         for i in range(len(positions)):
-            report[f'Bases with {bins[i]}-{bins[i+1]-1}x coverage'] = [f'{positions[i]} ({positions[i]/sum(depths)*100:.3f}%']
+            report[f'Bases with {bins[i]}-{bins[i+1]-1}x coverage'] = [f'{positions[i]} ({positions[i]/sum(depths)*100:.3f}%)']
 
         count_51 = np.sum(depths > 50) 
         report['Bases with >50x coverage'] = [f'{count_51} ({count_51/sum_depths*100:.3f}%']
+
+        count_10 = np.sum(depths >= 10)
+        count_10_percent = count_10/sum_depths*100
+        report['Bases with ≥10x coverage'] = [f'{count_10} ({count_10_percent:.3f}%']
+        if count_10_percent >= 95:
+            report['QC Verdict'] = ['PASS']
+            print('QC Verdict: PASS (≥95% bases at ≥10x coverage)')
+        elif count_10_percent > 80:
+            report['QC Verdict'] = ['WARNING']
+            print('QC Verdict: WARNING')
+        else:
+            report['QC Verdict'] = ['FAIL']
+            print('QC Verdict: FAIL')
 
         output = pd.DataFrame({key: pd.Series(value) for key, value in report.items()})
         output.to_csv(f"{gene.gene_name} QC report.csv", index=False, encoding='utf-8-sig', sep=';')
