@@ -1,0 +1,57 @@
+import pysam # For reading BAM files
+from pyensembl import EnsemblRelease # For finding exon coordinates
+import pandas as pd # For writing the report as a CSV file
+import numpy as np
+
+def gene_coverage(bam='', gene='', transcript=''):
+    data = EnsemblRelease(115)
+    gene = data.genes_by_name(gene)[0]
+    transcript = data.transcript_by_id(transcript)
+    print(f"Gene name: {gene.gene_name}")
+    print(f"Gene ID: {gene.gene_id}")
+    print(f"Location: Chromosome {gene.contig}: {gene.start} - {gene.end}")
+    print(f'Transcript ID: {transcript.transcript_id}') 
+
+    start = gene.start -1 
+    end = gene.end
+    chrom = gene.contig
+
+    # Dictionary for report:
+    report = {
+        'Gene name': [gene.gene_name],
+        'Gene ID': [gene.gene_id],
+        'Location': [f"{gene.contig}: {gene.start} - {gene.end}"],
+        'Transcript ID': [transcript.transcript_id],
+        'Total reads': [],
+        'Mean coverage': []
+    }
+
+    with pysam.AlignmentFile(bam, 'rb') as content:
+        # Count total reads
+        total = content.count(chrom, start, end)
+        report['Total reads'].append(total)
+
+        # Count mean coverage
+        depths = np.array([read.nsegments for read in content.pileup(chrom, start, end, truncate=True)])
+        sum_depths = sum(depths)
+        mean_coverage = np.mean(depths)
+        report['Mean coverage'].append(mean_coverage)
+
+        count_zero = np.sum(depths == 0)
+        report['Bases with 0x coverage'] = [f'{count_zero} ({count_zero/sum_depths*100:.3f}%']
+
+        bins = [0, 6, 11, 21, 50]
+        positions, bin_edges = np.histogram(depths, bins)
+        for i in range(len(positions)):
+            report[f'Bases with {bins[i]}-{bins[i+1]-1}x coverage'] = [f'{positions[i]} ({positions[i]/sum(depths)*100:.3f}%']
+
+        count_51 = np.sum(depths > 50) 
+        report['Bases with >50x coverage'] = [f'{count_51} ({count_51/sum_depths*100:.3f}%']
+
+        output = pd.DataFrame({key: pd.Series(value) for key, value in report.items()})
+        output.to_csv(f"{gene.gene_name} QC report.csv", index=False, encoding='utf-8-sig', sep=';')
+
+        print('Finish')
+
+
+gene_coverage('https://ftp.ncbi.nlm.nih.gov/ReferenceSamples/giab/data/NA12878/NIST_NA12878_HG001_HiSeq_300x/RMNISTHS_30xdownsample.bam', 'SCN1A','ENST00000674923')
