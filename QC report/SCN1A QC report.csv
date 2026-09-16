@@ -1,0 +1,2 @@
+﻿Gene name;Gene ID;Location;Transcript ID;Total reads;Mean coverage;Bases with 0x coverage;Bases with 0-5x coverage;Bases with 6-10x coverage;Bases with 11-20x coverage;Bases with 21-49x coverage;Bases with >50x coverage;Bases with ≥10x coverage;QC Verdict
+SCN1A;ENSG00000144285;2: 165984641 - 166182806;ENST00000674923;47005;34.58446958610458;3 (0.002%);37 (0.019%);49 (0.025%);4474 (2.258%);190202 (95.982%);3404 (1.718%);198095 (99.965%);PASS
