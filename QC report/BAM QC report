@@ -18,7 +18,7 @@ def gene_coverage(bam='', gene='', transcript=''):
     start = gene.start
     end = gene.end
     chrom = gene.contig
-    total_bases = end - start
+    total_bases = end - start + 1
     location = f"{chrom}:{start}-{end}"
 
     # Dictionary for report:
@@ -80,7 +80,7 @@ def gene_coverage(bam='', gene='', transcript=''):
         for exon in transcript.exons:
             xmin = exon.start
             xmax = exon.end
-            plt.axvspan(xmin=xmin, xmax=xmax, ymin=0, ymax=70, alpha=0.2)
+            plt.axvspan(xmin=xmin, xmax=xmax, alpha=0.2)
         plt.title('Coverage')
         plt.xlabel('Position')
         plt.ylabel('Coverage')
